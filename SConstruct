@@ -19,7 +19,19 @@
 
 import eol_scons
 
-env = Environment(tools=['default', 'gitinfo', 'symlink'])
+nidas_local = False
+
+
+try:
+    # If this succeeds, then we're building inside the nidas source tree.
+    Import('env')
+    nidas_local = True
+    print("nc-server building inside nidas...")
+    # Don't interfere with the Environment used by the rest of nidas.
+    env = env.Clone()
+    env.Require(['gitinfo', 'symlink'])
+except:
+    env = Environment(tools=['default', 'gitinfo', 'symlink'])
 
 conf = Configure(env)
 if conf.CheckCHeader('sys/capability.h'):
@@ -65,7 +77,8 @@ elif 'armhf' in BUILDS:
 env['CCFLAGS'] = ['-g', '-Wall', '-O2']
 env['CXXFLAGS'] = ['-Weffc++', '-Wno-deprecated']
 
-env.GitInfo("version.h", "#")
+print(env.File('nc_server_rpc.x').srcnode().dir)
+env.GitInfo("version.h", env.File('nc_server_rpc.x').srcnode().dir)
 
 # Clone the netcdf environment before adding the RPC/XDR settings.
 nc_env = env.Clone()
@@ -110,8 +123,12 @@ lib = lib_env.SharedLibrary3('nc_server_rpc', libobjs)
 
 # Define a tool to build against the nc_server client library.
 def nc_server_client(env):
-    env.AppendUnique(LIBPATH='.')
+    env.AppendUnique(CPPPATH=[svc[0].dir])
+    env.Append(LIBPATH=[lib[0].dir])
     env.Append(LIBS='nc_server_rpc')
+    env.Tool(rpc)
+
+Export('nc_server_client')
 
 # clients need the client library
 clnt_env = env.Clone()
@@ -122,8 +139,9 @@ clnt_env.Tool(nc_server_client)
 # pkg-config.  This might be able to use the nidas tool instead, but that
 # has not been tried yet.
 srv_env = clnt_env.Clone()
-srv_env.ParseConfig('pkg-config --cflags --libs nidas')
-srv_env.Require(['netcdf'])
+# srv_env.ParseConfig('pkg-config --cflags --libs nidas')
+srv_env.Require(['nidas', 'netcdf'])
+srv_env.Append(LIBS=srv_env.NidasUtilLibs())
 
 srcs = ["nc_server.cc", "nc_server_rpc_procs.cc", svc]
 
@@ -148,7 +166,7 @@ env.Alias('install', ['$PREFIX'])
 env.Alias('install', libtgt)
 
 # Create nc_server.pc, replacing @token@
-env.Command('nc_server.pc', '#nc_server.pc.in',
+env.Command('nc_server.pc', 'nc_server.pc.in',
             "sed -e 's,@PREFIX@,$PREFIX,' -e 's,@ARCHLIBDIR@,$ARCHLIBDIR,'"
             " -e 's,@REPO_TAG@,$REPO_TAG,' "
             " -e 's,@REQUIRES@,$PCREQUIRES,' "
