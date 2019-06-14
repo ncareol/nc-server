@@ -21,16 +21,15 @@ import eol_scons
 
 nidas_local = False
 
-
-try:
-    # If this succeeds, then we're building inside the nidas source tree.
+if Dir('.').srcnode().File('../nidas/util/SConscript').exists():
+    # We're building inside the nidas source tree.
     Import('env')
     nidas_local = True
     print("nc-server building inside nidas...")
     # Don't interfere with the Environment used by the rest of nidas.
     env = env.Clone()
     env.Require(['gitinfo', 'symlink'])
-except:
+else:
     env = Environment(tools=['default', 'gitinfo', 'symlink'])
 
 conf = Configure(env)
@@ -77,8 +76,7 @@ elif 'armhf' in BUILDS:
 env['CCFLAGS'] = ['-g', '-Wall', '-O2']
 env['CXXFLAGS'] = ['-Weffc++', '-Wno-deprecated']
 
-print(env.File('nc_server_rpc.x').srcnode().dir)
-env.GitInfo("version.h", env.File('nc_server_rpc.x').srcnode().dir)
+env.GitInfo("version.h", env.Dir('.').srcnode())
 
 # Clone the netcdf environment before adding the RPC/XDR settings.
 nc_env = env.Clone()
@@ -135,11 +133,11 @@ clnt_env = env.Clone()
 clnt_env.Tool(nc_server_client)
 
 # Server needs xdr from the client library, so derive the server
-# environment from the client env, then add netcdf, and get nidas using
-# pkg-config.  This might be able to use the nidas tool instead, but that
-# has not been tried yet.
+# environment from the client env, then add netcdf.  Turns out we can use
+# the eol_scons nidas tool instead of pkg-config, and that means it works
+# whether building against nidas inside the source tree building against an
+# installed nidas.
 srv_env = clnt_env.Clone()
-# srv_env.ParseConfig('pkg-config --cflags --libs nidas')
 srv_env.Require(['nidas', 'netcdf'])
 srv_env.Append(LIBS=srv_env.NidasUtilLibs())
 
