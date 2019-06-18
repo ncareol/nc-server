@@ -21,15 +21,16 @@ import eol_scons
 
 nidas_local = False
 
-if Dir('.').srcnode().File('../nidas/util/SConscript').exists():
-    # We're building inside the nidas source tree.
+try:
+    # We're building inside the nidas source tree if 'env' has been
+    # exported.
     Import('env')
     nidas_local = True
     print("nc-server building inside nidas...")
     # Don't interfere with the Environment used by the rest of nidas.
     env = env.Clone()
     env.Require(['gitinfo', 'symlink'])
-else:
+except:
     env = Environment(tools=['default', 'gitinfo', 'symlink'])
 
 conf = Configure(env)
@@ -39,8 +40,14 @@ if conf.CheckLib('cap'):
     conf.env.AppendUnique(LIBS = 'cap')
 env = conf.Finish()
 
+# Setup a PREFIX variable.  If inside the nidas source, use a distinct name
+# for the global variable, but translate the setting to the nc_server
+# environment PREFIX.
 opts = eol_scons.GlobalVariables('config.py')
-opts.AddVariables(PathVariable('PREFIX','installation path',
+prefixname = 'PREFIX'
+if nidas_local:
+    prefixname = 'NC_SERVER_PREFIX'
+opts.AddVariables(PathVariable(prefixname, 'installation path',
                                '/opt/nc_server', PathVariable.PathAccept))
 
 opts.Add('REPO_TAG',
@@ -54,6 +61,8 @@ opts.Add('ARCHLIBDIR',
 opts.Add('PKG_CONFIG_PATH', 
          'Path to pkg-config files, if you need other than the system default')
 opts.Update(env)
+
+env['PREFIX'] = env[prefixname]
 
 # Propagate path to the process environment for running pkg-config
 if env.has_key('PKG_CONFIG_PATH'):
