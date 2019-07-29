@@ -18,6 +18,7 @@
 # client_env, nc_env.
 
 import eol_scons
+import eol_scons.parseconfig as pc
 
 nidas_local = False
 
@@ -50,16 +51,20 @@ if nidas_local:
 opts.AddVariables(PathVariable(prefixname, 'installation path',
                                '/opt/nc_server', PathVariable.PathAccept))
 
-opts.Add('REPO_TAG',
+opts.Add('NC_SERVER_REPO_TAG',
          'git tag of the source, in the form "vX.Y", when '
          'building outside of a git repository')
-opts.Add('BUILDS',
-         'A host architecture to build for: host, armbe, armel or armhf.',
-         'host')
-opts.Add('ARCHLIBDIR', 
-         'Where to install nc_server libraries relative to $PREFIX')
-opts.Add('PKG_CONFIG_PATH', 
-         'Path to pkg-config files, if you need other than the system default')
+
+# When building inside nidas, use the NIDAS variables.
+if not nidas_local:
+    opts.Add('BUILDS',
+             'A host architecture to build for: host, armbe, armel or armhf.',
+             'host')
+    opts.Add('ARCHLIBDIR',
+             'Where to install nc_server libraries relative to $%s' % (prefixname))
+    opts.Add('PKG_CONFIG_PATH',
+             'Path to pkg-config files, if you need other than the system default')
+
 opts.Update(env)
 
 env['PREFIX'] = env[prefixname]
@@ -86,6 +91,14 @@ env['CCFLAGS'] = ['-g', '-Wall', '-O2']
 env['CXXFLAGS'] = ['-Weffc++', '-Wno-deprecated']
 
 env.GitInfo("version.h", env.Dir('.').srcnode())
+env.SetDefault(NC_SERVER_REPO_TAG=env['REPO_TAG'])
+
+# When building with the nidas cross-build environment, the -pie compiler
+# option is added, and that in turn requires the nc_server objects to be
+# compiled with -fPIC or else there is an error on linking.  No harm in
+# adding it here whether building within nidas or not.
+env.Append(CFLAGS='-fPIC')
+env.Append(CXXFLAGS='-fPIC')
 
 # Clone the netcdf environment before adding the RPC/XDR settings.
 nc_env = env.Clone()
@@ -103,13 +116,12 @@ def rpc(env):
     #
     # So use the tirpc package config if available, otherwise fall back to
     # the legacy rpc built into glibc.
-    try:
-        env.ParseConfig('pkg-config --cflags --libs libtirpc')
+    if pc.CheckConfig(env, 'pkg-config libtirpc'):
+        pc.ParseConfig(env, 'pkg-config --cflags --libs libtirpc')
         print("Using libtirpc.")
         env['PCREQUIRES'] = "libtirpc"
-    except OSError:
+    else:
         print("Using legacy rpc.")
-        pass
 
 # The rest of the environments to setup, server, lirbrary, and clients,
 # will need RPC/XDR.
@@ -175,7 +187,7 @@ env.Alias('install', libtgt)
 # Create nc_server.pc, replacing @token@
 env.Command('nc_server.pc', 'nc_server.pc.in',
             "sed -e 's,@PREFIX@,$PREFIX,' -e 's,@ARCHLIBDIR@,$ARCHLIBDIR,'"
-            " -e 's,@REPO_TAG@,$REPO_TAG,' "
+            " -e 's,@REPO_TAG@,$NC_SERVER_REPO_TAG,' "
             " -e 's,@REQUIRES@,$PCREQUIRES,' "
             "< $SOURCE > $TARGET")
 
