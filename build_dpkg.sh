@@ -10,6 +10,7 @@ usage() {
     echo "-c: build in a chroot"
     echo "-i: install them with reprepro to the repository"
     echo "-n: don't clean source tree, passing -nc to dpkg-buildpackage"
+    echo "-a: build inside the nidas tree"
     echo "arch is armel, armhf or amd64"
     exit 1
 }
@@ -22,6 +23,7 @@ sign=false
 arch=amd64
 args="--no-tgz-check -sa"
 use_chroot=false
+nidas_local=false
 while [ $# -gt 0 ]; do
     case $1 in
     -i)
@@ -37,6 +39,9 @@ while [ $# -gt 0 ]; do
     -s)
         sign=true
         ;;
+    -a)
+	nidas_local=true
+	;;
     armel)
         export CC=arm-linux-gnueabi-gcc
         arch=$1
