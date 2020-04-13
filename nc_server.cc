@@ -2689,9 +2689,9 @@ int NcServerApp::run(void)
 {
     ILOG(("nc_server starting"));
 
+#ifdef HAS_CAPABILITY_H 
     if (getuid() == 0) {
 
-#ifdef HAS_CAPABILITY_H 
         /* man 7 capabilities:
          * If a thread that has a 0 value for one or more of its user IDs wants to
          * prevent its permitted capability set being cleared when it  resets  all
@@ -2708,7 +2708,6 @@ int NcServerApp::run(void)
         catch (const nidas::util::Exception& e) {
             WLOG(("%s: %s. Will not be able to keep capabilities ","nc_server",e.what()));
         }
-#endif
     }
 
     // add CAP_SETGID capability so that we can add to our supplmental group ids
@@ -2733,6 +2732,7 @@ int NcServerApp::run(void)
         struct passwd *pwent = getpwuid(getuid());
         WLOG(("Warning: userid=%s (%d). Calls to rpcbind may fail since we can't use a restricted port number", (pwent == NULL ? "unknown" : pwent->pw_name), getuid()));
     }
+#endif
 
     if (_groupid != 0 && getegid() != _groupid) {
         if (setgid(_groupid) < 0)
