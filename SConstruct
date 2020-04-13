@@ -19,7 +19,9 @@
 
 import eol_scons
 
-env = Environment(tools=['default', 'gitinfo', 'symlink', 'rpcgen'])
+env = Environment(tools=['default', 'gitinfo', 'symlink', 'rpcgen', 'prefixoptions'])
+
+env.PassEnv('')
 
 conf = Configure(env)
 if conf.CheckCHeader('sys/capability.h'):
@@ -46,7 +48,7 @@ opts.Update(env)
 
 # Propagate path to the process environment for running pkg-config
 if env.has_key('PKG_CONFIG_PATH'):
-    env['ENV']['PKG_CONFIG_PATH'] = env['PKG_CONFIG_PATH']
+    env.PrependENVPath('PKG_CONFIG_PATH', env['PKG_CONFIG_PATH'])
 
 BUILDS = Split(env['BUILDS'])
 
@@ -69,8 +71,9 @@ env.GitInfo("version.h", "#")
 
 # Clone the netcdf environment before adding the RPC/XDR settings.
 nc_env = env.Clone()
-nc_env.Require('netcdf')
-
+#nc_env.Require('netcdf')
+nc_env.ParseConfig('pkg-config netcdf --libs --cflags')
+nc_env.Append(LIBS=['netcdf_c++'])
 # -L: generated code sends rpc server errors to syslog
 env['RPCGENSERVICEFLAGS'] = ['-L']
 
@@ -123,7 +126,9 @@ clnt_env.Tool(nc_server_client)
 # has not been tried yet.
 srv_env = clnt_env.Clone()
 srv_env.ParseConfig('pkg-config --cflags --libs nidas')
-srv_env.Require(['netcdf'])
+# srv_env.Require(['netcdf'])
+srv_env.ParseConfig('pkg-config --cflags --libs netcdf')
+srv_env.Append(LIBS=['netcdf_c++'])
 
 srcs = ["nc_server.cc", "nc_server_rpc_procs.cc", svc]
 
